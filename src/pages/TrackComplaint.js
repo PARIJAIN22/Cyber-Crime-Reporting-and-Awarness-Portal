@@ -1,23 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
+import { useApp } from '../context/AppContext';
 import './TrackComplaint.css';
 
-function TrackComplaint({ complaints }) {
+function TrackComplaint() {
+  const { complaints, addNotification } = useApp();
   const [searchId, setSearchId] = useState('');
   const [searchResult, setSearchResult] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState('');
 
-  const statusSteps = [
+  const statusSteps = useMemo(() => [
     { key: 'Filed', label: 'Filed', icon: '📝' },
     { key: 'Under Review', label: 'Under Review', icon: '🔍' },
     { key: 'Action Taken', label: 'Action Taken', icon: '✅' }
-  ];
+  ], []);
 
-  const getStatusIndex = (status) => {
+  const getStatusIndex = useCallback((status) => {
     return statusSteps.findIndex(step => step.key === status);
-  };
+  }, [statusSteps]);
 
-  const handleSearch = (e) => {
+  const handleSearch = useCallback((e) => {
     e.preventDefault();
     
     if (!searchId.trim()) {
@@ -37,18 +39,31 @@ function TrackComplaint({ complaints }) {
       if (found) {
         setSearchResult(found);
         setError('');
+        addNotification({
+          type: 'success',
+          message: `Complaint ${found.id} found!`
+        });
       } else {
         setSearchResult(null);
         setError('No complaint found with this ID. Please check and try again.');
+        addNotification({
+          type: 'error',
+          message: 'No complaint found with this ID'
+        });
       }
       setIsSearching(false);
     }, 1000);
-  };
+  }, [searchId, complaints, addNotification]);
 
-  const formatDate = (dateString) => {
+  const formatDate = useCallback((dateString) => {
     const options = { year: 'numeric', month: 'long', day: 'numeric' };
     return new Date(dateString).toLocaleDateString('en-IN', options);
-  };
+  }, []);
+
+  const handleViewDetails = useCallback((complaint) => {
+    setSearchId(complaint.id);
+    setSearchResult(complaint);
+  }, []);
 
   return (
     <div className="track-complaint">
@@ -60,7 +75,7 @@ function TrackComplaint({ complaints }) {
       </div>
 
       {/* Search Section */}
-      <section className="search-section" aria-labelledby="search-title">
+      <section className="search-section animate-fade-in" aria-labelledby="search-title">
         <h2 id="search-title" className="visually-hidden">Search Complaint</h2>
         <form onSubmit={handleSearch} className="search-form">
           <div className="search-input-group">
@@ -105,7 +120,7 @@ function TrackComplaint({ complaints }) {
 
       {/* Search Result */}
       {searchResult && (
-        <section className="result-section" aria-labelledby="result-title">
+        <section className="result-section animate-slide-up" aria-labelledby="result-title">
           <h2 id="result-title" className="section-title">Complaint Details</h2>
           
           <div className="complaint-card">
@@ -202,7 +217,7 @@ function TrackComplaint({ complaints }) {
       )}
 
       {/* Recent Complaints */}
-      <section className="recent-section" aria-labelledby="recent-title">
+      <section className="recent-section animate-fade-in" style={{ animationDelay: '0.1s' }} aria-labelledby="recent-title">
         <h2 id="recent-title" className="section-title">Your Recent Complaints</h2>
         <p className="section-subtitle">
           View all your filed complaints and their current status
@@ -215,8 +230,12 @@ function TrackComplaint({ complaints }) {
           </div>
         ) : (
           <div className="complaints-list">
-            {complaints.map((complaint) => (
-              <article key={complaint.id} className="complaint-list-item">
+            {complaints.map((complaint, index) => (
+              <article 
+                key={complaint.id} 
+                className="complaint-list-item animate-slide-up"
+                style={{ animationDelay: `${index * 0.1}s` }}
+              >
                 <div className="list-item-header">
                   <span className="complaint-id">{complaint.id}</span>
                   <span className={`status-badge status-${complaint.status.toLowerCase().replace(' ', '-')}`}>
@@ -239,10 +258,7 @@ function TrackComplaint({ complaints }) {
                 </div>
                 <button 
                   className="view-details-btn"
-                  onClick={() => {
-                    setSearchId(complaint.id);
-                    setSearchResult(complaint);
-                  }}
+                  onClick={() => handleViewDetails(complaint)}
                 >
                   View Details
                 </button>
@@ -253,22 +269,22 @@ function TrackComplaint({ complaints }) {
       </section>
 
       {/* Help Section */}
-      <section className="help-section" aria-labelledby="help-title">
+      <section className="help-section animate-fade-in" style={{ animationDelay: '0.2s' }} aria-labelledby="help-title">
         <h2 id="help-title" className="section-title">Need Help?</h2>
         <div className="help-cards">
-          <div className="help-card">
+          <div className="help-card animate-scale-in">
             <div className="help-icon" aria-hidden="true">📞</div>
             <h3>Call Helpline</h3>
             <p>24/7 support available</p>
             <a href="tel:1930" className="help-link">1930</a>
           </div>
-          <div className="help-card">
+          <div className="help-card animate-scale-in" style={{ animationDelay: '0.1s' }}>
             <div className="help-icon" aria-hidden="true">📧</div>
             <h3>Email Support</h3>
             <p>Get help via email</p>
             <a href="mailto:cybercrime@gov.in" className="help-link">cybercrime@gov.in</a>
           </div>
-          <div className="help-card">
+          <div className="help-card animate-scale-in" style={{ animationDelay: '0.2s' }}>
             <div className="help-icon" aria-hidden="true">❓</div>
             <h3>FAQ</h3>
             <p>Common questions</p>

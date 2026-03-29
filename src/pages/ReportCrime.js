@@ -1,30 +1,118 @@
-import React, { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useApp } from '../context/AppContext';
+import { useForm } from '../hooks/useForm';
 import './ReportCrime.css';
 
-function ReportCrime({ addComplaint }) {
+function ReportCrime() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { addComplaint, addNotification } = useApp();
   const fileInputRef = useRef(null);
-  const [formData, setFormData] = useState({
+  const [previewFiles, setPreviewFiles] = useState([]);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [complaintId, setComplaintId] = useState('');
+
+  // Get pre-filled data from location state (from ScamAlerts)
+  const preFilledData = location.state || {};
+
+  // Validation function
+  const validateForm = useCallback((values) => {
+    const errors = {};
+
+    if (!values.fullName.trim()) {
+      errors.fullName = 'Full name is required';
+    } else if (values.fullName.trim().length < 2) {
+      errors.fullName = 'Name must be at least 2 characters';
+    }
+
+    if (!values.email.trim()) {
+      errors.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) {
+      errors.email = 'Please enter a valid email address';
+    }
+
+    if (!values.phone.trim()) {
+      errors.phone = 'Phone number is required';
+    } else if (!/^[0-9]{10}$/.test(values.phone.replace(/\D/g, ''))) {
+      errors.phone = 'Please enter a valid 10-digit phone number';
+    }
+
+    if (!values.crimeType) {
+      errors.crimeType = 'Please select a crime type';
+    }
+
+    if (!values.incidentDate) {
+      errors.incidentDate = 'Incident date is required';
+    } else {
+      const selectedDate = new Date(values.incidentDate);
+      const today = new Date();
+      if (selectedDate > today) {
+        errors.incidentDate = 'Incident date cannot be in the future';
+      }
+    }
+
+    if (!values.description.trim()) {
+      errors.description = 'Description is required';
+    } else if (values.description.trim().length < 20) {
+      errors.description = 'Description must be at least 20 characters';
+    }
+
+    if (values.amountLost && isNaN(parseFloat(values.amountLost))) {
+      errors.amountLost = 'Please enter a valid amount';
+    }
+
+    return errors;
+  }, []);
+
+  // Submit handler
+  const handleSubmit = useCallback(async (values) => {
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    const newComplaintId = addComplaint({
+      type: values.crimeType,
+      description: values.description,
+      evidence: previewFiles.map(f => f.name).join(', ')
+    });
+
+    setComplaintId(newComplaintId);
+    setSubmitSuccess(true);
+    
+    addNotification({
+      type: 'success',
+      message: `Complaint ${newComplaintId} filed successfully!`
+    });
+  }, [addComplaint, addNotification, previewFiles]);
+
+  // Initial form values
+  const initialValues = useMemo(() => ({
     fullName: '',
     email: '',
     phone: '',
-    crimeType: '',
+    crimeType: preFilledData.crimeType || '',
     incidentDate: '',
     incidentTime: '',
     description: '',
     amountLost: '',
     suspectInfo: '',
     evidence: []
-  });
+  }), [preFilledData.crimeType]);
 
-  const [errors, setErrors] = useState({});
-  const [previewFiles, setPreviewFiles] = useState([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitSuccess, setSubmitSuccess] = useState(false);
-  const [complaintId, setComplaintId] = useState('');
+  // Use custom form hook
+  const {
+    values,
+    errors,
+    touched,
+    isSubmitting,
+    handleChange,
+    handleBlur,
+    handleSubmit: onFormSubmit,
+    setFieldValue
+  } = useForm(initialValues, validateForm, handleSubmit);
 
-  const crimeTypes = [
+  // Crime types
+  const crimeTypes = useMemo(() => [
     { value: '', label: 'Select Crime Type' },
     { value: 'Phishing', label: 'Phishing' },
     { value: 'UPI Fraud', label: 'UPI Fraud' },
@@ -36,74 +124,10 @@ function ReportCrime({ addComplaint }) {
     { value: 'Credit Card Fraud', label: 'Credit Card Fraud' },
     { value: 'Investment Scam', label: 'Investment Scam' },
     { value: 'Other', label: 'Other' }
-  ];
+  ], []);
 
-  const validateForm = () => {
-    const newErrors = {};
-
-    if (!formData.fullName.trim()) {
-      newErrors.fullName = 'Full name is required';
-    } else if (formData.fullName.trim().length < 2) {
-      newErrors.fullName = 'Name must be at least 2 characters';
-    }
-
-    if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = 'Please enter a valid email address';
-    }
-
-    if (!formData.phone.trim()) {
-      newErrors.phone = 'Phone number is required';
-    } else if (!/^[0-9]{10}$/.test(formData.phone.replace(/\D/g, ''))) {
-      newErrors.phone = 'Please enter a valid 10-digit phone number';
-    }
-
-    if (!formData.crimeType) {
-      newErrors.crimeType = 'Please select a crime type';
-    }
-
-    if (!formData.incidentDate) {
-      newErrors.incidentDate = 'Incident date is required';
-    } else {
-      const selectedDate = new Date(formData.incidentDate);
-      const today = new Date();
-      if (selectedDate > today) {
-        newErrors.incidentDate = 'Incident date cannot be in the future';
-      }
-    }
-
-    if (!formData.description.trim()) {
-      newErrors.description = 'Description is required';
-    } else if (formData.description.trim().length < 20) {
-      newErrors.description = 'Description must be at least 20 characters';
-    }
-
-    if (formData.amountLost && isNaN(parseFloat(formData.amountLost))) {
-      newErrors.amountLost = 'Please enter a valid amount';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
-    }
-  };
-
-  const handleFileChange = (e) => {
+  // Handle file change
+  const handleFileChange = useCallback((e) => {
     const files = Array.from(e.target.files);
     const validFiles = [];
     const newPreviews = [];
@@ -112,13 +136,19 @@ function ReportCrime({ addComplaint }) {
       // Validate file type
       const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf', 'video/mp4'];
       if (!validTypes.includes(file.type)) {
-        alert(`File ${file.name} is not a supported format. Please upload images, PDFs, or videos.`);
+        addNotification({
+          type: 'error',
+          message: `File ${file.name} is not a supported format. Please upload images, PDFs, or videos.`
+        });
         return;
       }
 
       // Validate file size (max 10MB)
       if (file.size > 10 * 1024 * 1024) {
-        alert(`File ${file.name} is too large. Maximum size is 10MB.`);
+        addNotification({
+          type: 'error',
+          message: `File ${file.name} is too large. Maximum size is 10MB.`
+        });
         return;
       }
 
@@ -138,62 +168,26 @@ function ReportCrime({ addComplaint }) {
       reader.readAsDataURL(file);
     });
 
-    setFormData(prev => ({
-      ...prev,
-      evidence: [...prev.evidence, ...validFiles]
-    }));
-  };
+    setFieldValue('evidence', [...values.evidence, ...validFiles]);
+  }, [values.evidence, setFieldValue, addNotification]);
 
-  const removeFile = (index) => {
+  // Remove file
+  const removeFile = useCallback((index) => {
     setPreviewFiles(prev => prev.filter((_, i) => i !== index));
-    setFormData(prev => ({
-      ...prev,
-      evidence: prev.evidence.filter((_, i) => i !== index)
-    }));
-  };
+    setFieldValue('evidence', values.evidence.filter((_, i) => i !== index));
+  }, [values.evidence, setFieldValue]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!validateForm()) {
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
-    const newComplaintId = addComplaint({
-      type: formData.crimeType,
-      description: formData.description,
-      evidence: previewFiles.map(f => f.name).join(', ')
-    });
-
-    setComplaintId(newComplaintId);
-    setSubmitSuccess(true);
-    setIsSubmitting(false);
-
-    // Reset form
-    setFormData({
-      fullName: '',
-      email: '',
-      phone: '',
-      crimeType: '',
-      incidentDate: '',
-      incidentTime: '',
-      description: '',
-      amountLost: '',
-      suspectInfo: '',
-      evidence: []
-    });
+  // Reset form
+  const resetForm = useCallback(() => {
+    setSubmitSuccess(false);
+    setComplaintId('');
     setPreviewFiles([]);
-  };
+  }, []);
 
   if (submitSuccess) {
     return (
       <div className="report-crime">
-        <div className="success-container">
+        <div className="success-container animate-scale-in">
           <div className="success-icon" aria-hidden="true">✅</div>
           <h1 className="success-title">Complaint Filed Successfully!</h1>
           <p className="success-message">
@@ -210,7 +204,7 @@ function ReportCrime({ addComplaint }) {
               Track Your Complaint
             </button>
             <button 
-              onClick={() => setSubmitSuccess(false)}
+              onClick={resetForm}
               className="btn btn-secondary"
             >
               File Another Complaint
@@ -230,9 +224,9 @@ function ReportCrime({ addComplaint }) {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="report-form" noValidate>
+      <form onSubmit={onFormSubmit} className="report-form" noValidate>
         {/* Personal Information Section */}
-        <section className="form-section" aria-labelledby="personal-info-title">
+        <section className="form-section animate-fade-in" aria-labelledby="personal-info-title">
           <h2 id="personal-info-title" className="section-title">
             <span className="section-icon" aria-hidden="true">👤</span>
             Personal Information
@@ -247,15 +241,16 @@ function ReportCrime({ addComplaint }) {
                 type="text"
                 id="fullName"
                 name="fullName"
-                value={formData.fullName}
-                onChange={handleInputChange}
-                className={`form-input ${errors.fullName ? 'error' : ''}`}
+                value={values.fullName}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                className={`form-input ${errors.fullName && touched.fullName ? 'error' : ''}`}
                 placeholder="Enter your full name"
-                aria-describedby={errors.fullName ? 'fullName-error' : undefined}
-                aria-invalid={errors.fullName ? 'true' : 'false'}
+                aria-describedby={errors.fullName && touched.fullName ? 'fullName-error' : undefined}
+                aria-invalid={errors.fullName && touched.fullName ? 'true' : 'false'}
                 required
               />
-              {errors.fullName && (
+              {errors.fullName && touched.fullName && (
                 <span id="fullName-error" className="error-message" role="alert">
                   {errors.fullName}
                 </span>
@@ -270,15 +265,16 @@ function ReportCrime({ addComplaint }) {
                 type="email"
                 id="email"
                 name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                className={`form-input ${errors.email ? 'error' : ''}`}
+                value={values.email}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                className={`form-input ${errors.email && touched.email ? 'error' : ''}`}
                 placeholder="Enter your email address"
-                aria-describedby={errors.email ? 'email-error' : undefined}
-                aria-invalid={errors.email ? 'true' : 'false'}
+                aria-describedby={errors.email && touched.email ? 'email-error' : undefined}
+                aria-invalid={errors.email && touched.email ? 'true' : 'false'}
                 required
               />
-              {errors.email && (
+              {errors.email && touched.email && (
                 <span id="email-error" className="error-message" role="alert">
                   {errors.email}
                 </span>
@@ -293,15 +289,16 @@ function ReportCrime({ addComplaint }) {
                 type="tel"
                 id="phone"
                 name="phone"
-                value={formData.phone}
-                onChange={handleInputChange}
-                className={`form-input ${errors.phone ? 'error' : ''}`}
+                value={values.phone}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                className={`form-input ${errors.phone && touched.phone ? 'error' : ''}`}
                 placeholder="Enter your 10-digit phone number"
-                aria-describedby={errors.phone ? 'phone-error' : undefined}
-                aria-invalid={errors.phone ? 'true' : 'false'}
+                aria-describedby={errors.phone && touched.phone ? 'phone-error' : undefined}
+                aria-invalid={errors.phone && touched.phone ? 'true' : 'false'}
                 required
               />
-              {errors.phone && (
+              {errors.phone && touched.phone && (
                 <span id="phone-error" className="error-message" role="alert">
                   {errors.phone}
                 </span>
@@ -311,7 +308,7 @@ function ReportCrime({ addComplaint }) {
         </section>
 
         {/* Incident Details Section */}
-        <section className="form-section" aria-labelledby="incident-details-title">
+        <section className="form-section animate-fade-in" style={{ animationDelay: '0.1s' }} aria-labelledby="incident-details-title">
           <h2 id="incident-details-title" className="section-title">
             <span className="section-icon" aria-hidden="true">📋</span>
             Incident Details
@@ -325,11 +322,12 @@ function ReportCrime({ addComplaint }) {
               <select
                 id="crimeType"
                 name="crimeType"
-                value={formData.crimeType}
-                onChange={handleInputChange}
-                className={`form-select ${errors.crimeType ? 'error' : ''}`}
-                aria-describedby={errors.crimeType ? 'crimeType-error' : undefined}
-                aria-invalid={errors.crimeType ? 'true' : 'false'}
+                value={values.crimeType}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                className={`form-select ${errors.crimeType && touched.crimeType ? 'error' : ''}`}
+                aria-describedby={errors.crimeType && touched.crimeType ? 'crimeType-error' : undefined}
+                aria-invalid={errors.crimeType && touched.crimeType ? 'true' : 'false'}
                 required
               >
                 {crimeTypes.map(type => (
@@ -338,7 +336,7 @@ function ReportCrime({ addComplaint }) {
                   </option>
                 ))}
               </select>
-              {errors.crimeType && (
+              {errors.crimeType && touched.crimeType && (
                 <span id="crimeType-error" className="error-message" role="alert">
                   {errors.crimeType}
                 </span>
@@ -353,15 +351,16 @@ function ReportCrime({ addComplaint }) {
                 type="date"
                 id="incidentDate"
                 name="incidentDate"
-                value={formData.incidentDate}
-                onChange={handleInputChange}
-                className={`form-input ${errors.incidentDate ? 'error' : ''}`}
+                value={values.incidentDate}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                className={`form-input ${errors.incidentDate && touched.incidentDate ? 'error' : ''}`}
                 max={new Date().toISOString().split('T')[0]}
-                aria-describedby={errors.incidentDate ? 'incidentDate-error' : undefined}
-                aria-invalid={errors.incidentDate ? 'true' : 'false'}
+                aria-describedby={errors.incidentDate && touched.incidentDate ? 'incidentDate-error' : undefined}
+                aria-invalid={errors.incidentDate && touched.incidentDate ? 'true' : 'false'}
                 required
               />
-              {errors.incidentDate && (
+              {errors.incidentDate && touched.incidentDate && (
                 <span id="incidentDate-error" className="error-message" role="alert">
                   {errors.incidentDate}
                 </span>
@@ -376,8 +375,8 @@ function ReportCrime({ addComplaint }) {
                 type="time"
                 id="incidentTime"
                 name="incidentTime"
-                value={formData.incidentTime}
-                onChange={handleInputChange}
+                value={values.incidentTime}
+                onChange={handleChange}
                 className="form-input"
               />
             </div>
@@ -390,15 +389,16 @@ function ReportCrime({ addComplaint }) {
                 type="number"
                 id="amountLost"
                 name="amountLost"
-                value={formData.amountLost}
-                onChange={handleInputChange}
-                className={`form-input ${errors.amountLost ? 'error' : ''}`}
+                value={values.amountLost}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                className={`form-input ${errors.amountLost && touched.amountLost ? 'error' : ''}`}
                 placeholder="Enter amount if applicable"
                 min="0"
                 step="0.01"
-                aria-describedby={errors.amountLost ? 'amountLost-error' : undefined}
+                aria-describedby={errors.amountLost && touched.amountLost ? 'amountLost-error' : undefined}
               />
-              {errors.amountLost && (
+              {errors.amountLost && touched.amountLost && (
                 <span id="amountLost-error" className="error-message" role="alert">
                   {errors.amountLost}
                 </span>
@@ -413,16 +413,17 @@ function ReportCrime({ addComplaint }) {
             <textarea
               id="description"
               name="description"
-              value={formData.description}
-              onChange={handleInputChange}
-              className={`form-textarea ${errors.description ? 'error' : ''}`}
+              value={values.description}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              className={`form-textarea ${errors.description && touched.description ? 'error' : ''}`}
               placeholder="Please provide detailed description of the incident..."
               rows="5"
-              aria-describedby={errors.description ? 'description-error' : undefined}
-              aria-invalid={errors.description ? 'true' : 'false'}
+              aria-describedby={errors.description && touched.description ? 'description-error' : undefined}
+              aria-invalid={errors.description && touched.description ? 'true' : 'false'}
               required
             />
-            {errors.description && (
+            {errors.description && touched.description && (
               <span id="description-error" className="error-message" role="alert">
                 {errors.description}
               </span>
@@ -436,8 +437,8 @@ function ReportCrime({ addComplaint }) {
             <textarea
               id="suspectInfo"
               name="suspectInfo"
-              value={formData.suspectInfo}
-              onChange={handleInputChange}
+              value={values.suspectInfo}
+              onChange={handleChange}
               className="form-textarea"
               placeholder="Any information about the suspect (phone number, email, website, etc.)"
               rows="3"
@@ -446,7 +447,7 @@ function ReportCrime({ addComplaint }) {
         </section>
 
         {/* Evidence Upload Section */}
-        <section className="form-section" aria-labelledby="evidence-title">
+        <section className="form-section animate-fade-in" style={{ animationDelay: '0.2s' }} aria-labelledby="evidence-title">
           <h2 id="evidence-title" className="section-title">
             <span className="section-icon" aria-hidden="true">📎</span>
             Evidence Upload
@@ -483,7 +484,7 @@ function ReportCrime({ addComplaint }) {
           {previewFiles.length > 0 && (
             <div className="file-preview-list" aria-label="Uploaded files preview">
               {previewFiles.map((file, index) => (
-                <div key={index} className="file-preview-item">
+                <div key={index} className="file-preview-item animate-scale-in">
                   {file.type.startsWith('image/') ? (
                     <img 
                       src={file.url} 
@@ -514,7 +515,7 @@ function ReportCrime({ addComplaint }) {
         </section>
 
         {/* Submit Section */}
-        <div className="form-actions">
+        <div className="form-actions animate-fade-in" style={{ animationDelay: '0.3s' }}>
           <p className="form-note">
             <span className="required">*</span> Required fields
           </p>

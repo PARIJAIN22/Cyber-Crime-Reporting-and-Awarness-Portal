@@ -1,69 +1,57 @@
-import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
+import React, { Suspense, lazy } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { AppProvider } from './context/AppContext';
+import ErrorBoundary from './components/ErrorBoundary';
 import Header from './components/Header';
 import Footer from './components/Footer';
-import Home from './pages/Home';
-import ReportCrime from './pages/ReportCrime';
-import TrackComplaint from './pages/TrackComplaint';
-import ScamAlerts from './pages/ScamAlerts';
-import Statistics from './pages/Statistics';
+import Notification from './components/Notification';
 import './App.css';
 
-function App() {
-  const [complaints, setComplaints] = useState([
-    {
-      id: 'CYB001',
-      type: 'Phishing',
-      status: 'Action Taken',
-      date: '2024-01-15',
-      description: 'Received fake bank email',
-      evidence: 'screenshot.png'
-    },
-    {
-      id: 'CYB002',
-      type: 'UPI Fraud',
-      status: 'Under Review',
-      date: '2024-01-20',
-      description: 'Unauthorized UPI transaction',
-      evidence: 'transaction.pdf'
-    },
-    {
-      id: 'CYB003',
-      type: 'Identity Theft',
-      status: 'Filed',
-      date: '2024-01-25',
-      description: 'Someone using my identity online',
-      evidence: 'profile_screenshot.jpg'
-    }
-  ]);
+// Lazy load pages for better performance
+const Home = lazy(() => import('./pages/Home'));
+const ReportCrime = lazy(() => import('./pages/ReportCrime'));
+const TrackComplaint = lazy(() => import('./pages/TrackComplaint'));
+const ScamAlerts = lazy(() => import('./pages/ScamAlerts'));
+const Statistics = lazy(() => import('./pages/Statistics'));
 
-  const addComplaint = (complaint) => {
-    const newComplaint = {
-      ...complaint,
-      id: `CYB${String(complaints.length + 1).padStart(3, '0')}`,
-      status: 'Filed',
-      date: new Date().toISOString().split('T')[0]
-    };
-    setComplaints([...complaints, newComplaint]);
-    return newComplaint.id;
-  };
-
+// Loading component
+function LoadingSpinner() {
   return (
-    <Router>
-      <div className="app">
-        <Header />
-        <main className="main-content">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/report" element={<ReportCrime addComplaint={addComplaint} />} />
-            <Route path="/track" element={<TrackComplaint complaints={complaints} />} />
-            <Route path="/alerts" element={<ScamAlerts />} />
-            <Route path="/statistics" element={<Statistics />} />
-          </Routes>
-        </main>
-        <Footer />
+    <div className="loading-container">
+      <div className="loading-spinner">
+        <div className="spinner-ring"></div>
+        <div className="spinner-ring"></div>
+        <div className="spinner-ring"></div>
       </div>
-    </Router>
+      <p className="loading-text">Loading...</p>
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <ErrorBoundary>
+      <AppProvider>
+        <Router>
+          <div className="app">
+            <Header />
+            <Notification />
+            <main className="main-content">
+              <Suspense fallback={<LoadingSpinner />}>
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/report" element={<ReportCrime />} />
+                  <Route path="/track" element={<TrackComplaint />} />
+                  <Route path="/alerts" element={<ScamAlerts />} />
+                  <Route path="/statistics" element={<Statistics />} />
+                </Routes>
+              </Suspense>
+            </main>
+            <Footer />
+          </div>
+        </Router>
+      </AppProvider>
+    </ErrorBoundary>
   );
 }
 
